@@ -1,4 +1,4 @@
-﻿#Requires -Modules KanbanizePowerShell, TrackITUnOfficial, TrackITWebAPIPowerShell, get-MultipleChoiceQuestionAnswered, TervisTrackITWebAPIPowerShell
+﻿#Requires -Modules KanbanizePowerShell, TrackITUnOfficial, TrackITWebAPIPowerShell, get-MultipleChoiceQuestionAnswered, TervisTrackITWebAPIPowerShell, MailToURI
 #Requires -Version 4
 
 function Invoke-PrioritizeConfirmTypeAndMoveCard {
