@@ -227,6 +227,8 @@ Function Close-WorkOrder {
 
     $RequestorFirstName = $WorkOrder.RequestorName -split " " | select -First 1
     $DefaultCloseMessage = "$($RequestorFirstName),`r`n`r`n`r`n`r`nIf you have any further issues please give us a call at 2248 or 941-441-3168`r`n`r`nThanks,`r`n`r`nIT Help Desk"
+    $Resolution = Read-MultiLineInputBoxDialog -WindowTitle "Resolution" -Message "Enter the final resolution note that will be sent to the user" -DefaultText $DefaultCloseMessage
+
     Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Done" | Out-Null
     Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
 }
