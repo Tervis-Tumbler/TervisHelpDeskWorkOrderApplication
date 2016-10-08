@@ -35,6 +35,9 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
 
         read-host "Hit enter once you have reviewed the details about this request"
 
+        $SkipCard = get-MultipleChoiceQuestionAnswered -Question "Skip this card and move to the next one?" -Choices "Yes","No" | ConvertTo-Boolean               
+        if ($SkipCard) { continue }
+
         if ($Card.Type -ne "None") {
             $TypeCorrect = get-MultipleChoiceQuestionAnswered -Question "Type correct?" -Choices "Yes","No" | ConvertTo-Boolean               
         }
