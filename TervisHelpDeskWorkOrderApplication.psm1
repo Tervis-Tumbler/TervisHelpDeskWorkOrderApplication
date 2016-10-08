@@ -204,9 +204,29 @@ Function Get-KanbanizeContextCard {
 }
 
 Function Remove-KanbanizeContextCard {
-   Remove-item Variable:Global:KanbanizeContextCard
+    Remove-item Variable:Global:KanbanizeContextCard
 }
 
 Function Get-LoggedOnUserName {
     Get-aduser $Env:USERNAME | select -ExpandProperty Name
+}
+
+Function Send-MailMessageToRequestorViaOutlook {
+    $Card = Get-KanbanizeContextCard
+    $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
+    $RequestorNameBecauseFilterDoesntWorkWithPropertyReference = $WorkOrder.RequestorName
+    $RequestorEmailAddress = Get-ADUser -Filter {Name -eq  $RequestorNameBecauseFilterDoesntWorkWithPropertyReference} -Properties EmailAddress |
+    Select -ExpandProperty EmailAddress
+
+    Start $(New-MailToURI -To $RequestorEmailAddress -Subject "Re: $($Card.title) {$($Card.taskid)}" -Cc tervis_notifications@kanbanize.com)
+}
+
+Function Close-WorkOrder {
+    $Card = Get-KanbanizeContextCard
+    $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
+
+    $RequestorFirstName = $WorkOrder.RequestorName -split " " | select -First 1
+    $DefaultCloseMessage = "$($RequestorFirstName),`r`n`r`n`r`n`r`nIf you have any further issues please give us a call at 2248 or 941-441-3168`r`n`r`nThanks,`r`n`r`nIT Help Desk"
+    Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Done" | Out-Null
+    Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
 }
