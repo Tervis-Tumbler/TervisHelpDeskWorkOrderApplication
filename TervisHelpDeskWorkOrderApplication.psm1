@@ -156,6 +156,7 @@ Function Get-NextCardToWorkOn {
 
 Function Get-CardBeingWorkedOn {
     Get-KanbanizeTervisHelpDeskCards -HelpDeskProcess |
+    where columnname -eq "Being worked on" |
     where assignee -eq $(Get-LoggedOnUserName)
 }
 
@@ -199,7 +200,9 @@ Function Set-KanbanizeContextCard {
     Param (
         $Card = (Get-CardBeingWorkedOn | Out-GridView -PassThru)
     )
-    $Global:KanbanizeContextCard = $Card
+    if ($Card) {
+        $Global:KanbanizeContextCard = $Card
+    }
 }
 
 Function Get-KanbanizeContextCard {
@@ -238,6 +241,7 @@ Function Close-WorkOrder {
 
     Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Done" | Out-Null
     Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
+    Remove-KanbanizeContextCard
 }
 
 Function Invoke-OpenWorkOrderInTrackIT {
