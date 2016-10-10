@@ -239,3 +239,8 @@ Function Close-WorkOrder {
     Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Done" | Out-Null
     Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
 }
+
+Function Invoke-OpenWorkOrderInTrackIT {
+    $Card = Get-KanbanizeContextCard
+    Start $($Card.customfields | where name -eq trackiturl | select -ExpandProperty value)
+}
