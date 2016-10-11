@@ -129,16 +129,21 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
 Function Get-NextCardToWorkOn {
     $LoggedOnUsersName = Get-LoggedOnUserName
 
-    $Cards = Get-KanbanizeTervisHelpDeskCards -HelpDeskProcess |
+    $CardsAvailableToWorkOn = Get-KanbanizeTervisHelpDeskCards -HelpDeskProcess |
     where {
         $_.assignee -eq "None" -or 
         $_.assignee -eq $LoggedOnUsersName 
-    }
+    } |
+    where columnname -In "Waiting to be worked on", "Ready to be worked on"
 
-    if ($Cards | where lanename -eq "Unplanned Work") {
-        $CardsInLane = $Cards | where lanename -eq "Unplanned Work"
+    $CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn = $CardsAvailableToWorkOn | 
+    where lanename -eq "Unplanned Work"
+
+    if ($CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn) {
+        $CardsInLane = $CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn
     } else {
-        $CardsInLane = $Cards | where lanename -eq "Planned Work"
+        $CardsInLane = $CardsAvailableToWorkOn | 
+        where lanename -eq "Planned Work"
     }
 
     if ($CardsInLane | where columnname -eq "Waiting to be worked on") {
