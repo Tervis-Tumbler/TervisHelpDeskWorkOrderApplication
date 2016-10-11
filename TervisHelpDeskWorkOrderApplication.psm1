@@ -174,10 +174,23 @@ Function Get-CardDetails {
     Get-TervisWorkOrderDetails -Card $Card
 }
 
+Function Get-CardsAssignedToMe {
+    Get-KanbanizeTervisHelpDeskCards -HelpDeskProcess |
+    where columnname -In "Waiting to be worked on","Ready to be worked on" |
+    where assignee -eq $(Get-LoggedOnUserName)
+}
+
 Function Start-WorkingOnCard {
     param (
-        $Card
+        [Parameter(ParameterSetName="Card")]$Card,
+        [Parameter(ParameterSetName="AssignedToMe")][Switch]$AssignedToMe
     )
+    if ($AssignedToMe) {
+        $Card = Get-CardsAssignedToMe | 
+        Out-GridView -PassThru
+    }
+    $LoggedOnUsersName = Get-LoggedOnUserName
+
     Set-KanbanizeContextCard $Card
     Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Being worked on" | Out-Null
     Edit-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Assignee $LoggedOnUsersName | Out-Null
@@ -203,7 +216,7 @@ Function Stop-WorkingOnCard {
 
 Function Set-KanbanizeContextCard {
     Param (
-        $Card = (Get-CardBeingWorkedOn | Out-GridView -PassThru)
+        [Parameter(ValueFromPipeline)]$Card = (Get-CardBeingWorkedOn | Out-GridView -PassThru)
     )
     if ($Card) {
         $Global:KanbanizeContextCard = $Card
