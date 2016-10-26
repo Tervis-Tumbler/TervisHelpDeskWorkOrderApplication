@@ -1,5 +1,10 @@
 ﻿#Requires -Modules KanbanizePowerShell, TrackITUnOfficial, TrackITWebAPIPowerShell, get-MultipleChoiceQuestionAnswered, TervisTrackITWebAPIPowerShell, MailToURI
 #Requires -Version 4
+#Requires -RunAsAdministrator
+
+Function Install-TervisHelpDeskWorkOrderApplication {
+    fsutil behavior set SymlinkEvaluation L2L:1 R2R:1 L2R:1 R2L:1
+}
 
 function Invoke-PrioritizeConfirmTypeAndMoveCard {
     [CmdletBinding()]
@@ -127,34 +132,42 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
 }
 
 Function Get-NextCardToWorkOn {
-    $LoggedOnUsersName = Get-LoggedOnUserName
-
-    $CardsAvailableToWorkOn = Get-KanbanizeTervisHelpDeskCards -HelpDeskProcess |
-    where {
-        $_.assignee -eq "None" -or 
-        $_.assignee -eq $LoggedOnUsersName 
-    } |
-    where columnname -In "Waiting to be worked on", "Ready to be worked on"
-
-    $CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn = $CardsAvailableToWorkOn | 
-    where lanename -eq "Unplanned Work"
-
-    if ($CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn) {
-        $CardsInLane = $CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn
+    param (
+        [Parameter(ParameterSetName="AssignedToMe")][Switch]$AssignedToMe
+    )
+    if ($AssignedToMe) {
+        $NextCardToWorkOn = Get-CardsAssignedToMe | 
+        Out-GridView -PassThru
     } else {
-        $CardsInLane = $CardsAvailableToWorkOn | 
-        where lanename -eq "Planned Work"
-    }
+        $LoggedOnUsersName = Get-LoggedOnUserName
 
-    if ($CardsInLane | where columnname -eq "Waiting to be worked on") {
-        $CardsInColumn = $CardsInLane | where columnname -eq "Waiting to be worked on"
-    } else {
-        $CardsInColumn = $CardsInLane | where columnname -eq "Ready to be worked on"
-    }
+        $CardsAvailableToWorkOn = Get-KanbanizeTervisHelpDeskCards -HelpDeskProcess |
+        where {
+            $_.assignee -eq "None" -or 
+            $_.assignee -eq $LoggedOnUsersName 
+        } |
+        where columnname -In "Waiting to be worked on", "Ready to be worked on"
+
+        $CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn = $CardsAvailableToWorkOn | 
+        where lanename -eq "Unplanned Work"
+
+        if ($CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn) {
+            $CardsInLane = $CardsInUnplannedWorkWaitingOrReadyToBeWorkedOn
+        } else {
+            $CardsInLane = $CardsAvailableToWorkOn | 
+            where lanename -eq "Planned Work"
+        }
+
+        if ($CardsInLane | where columnname -eq "Waiting to be worked on") {
+            $CardsInColumn = $CardsInLane | where columnname -eq "Waiting to be worked on"
+        } else {
+            $CardsInColumn = $CardsInLane | where columnname -eq "Ready to be worked on"
+        }
     
-    $NextCardToWorkOn = $CardsInColumn |
-    sort positionint |
-    select -First 1
+        $NextCardToWorkOn = $CardsInColumn |
+        sort positionint |
+        select -First 1
+    }
     
     Start-WorkingOnCard -Card $NextCardToWorkOn
 }
@@ -182,20 +195,11 @@ Function Get-CardsAssignedToMe {
 
 Function Start-WorkingOnCard {
     param (
-        [Parameter(ParameterSetName="Card")]$Card,
-        [Parameter(ParameterSetName="AssignedToMe")][Switch]$AssignedToMe
+        [Parameter(ParameterSetName="Card")]$Card
     )
-    if ($AssignedToMe) {
-        $Card = Get-CardsAssignedToMe | 
-        Out-GridView -PassThru
-    }
-    $LoggedOnUsersName = Get-LoggedOnUserName
-
     Set-KanbanizeContextCard $Card
     Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Being worked on" | Out-Null
-    Edit-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Assignee $LoggedOnUsersName | Out-Null
-
-    Invoke-TrackITLogin -Username helpdeskbot -Pwd helpdeskbot | Out-Null
+    Edit-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Assignee $(Get-LoggedOnUserName) | Out-Null
     Get-TervisWorkOrderDetails -Card $Card
 }
 
@@ -231,34 +235,152 @@ Function Remove-KanbanizeContextCard {
     Remove-item Variable:Global:KanbanizeContextCard
 }
 
-Function Get-LoggedOnUserName {
-    Get-aduser $Env:USERNAME | select -ExpandProperty Name
+Function Send-MailMessageToRequestor {
+    [CmdletBinding(DefaultParameterSetName="NeedToWait")]
+    param (        
+        [Parameter(Mandatory, ParameterSetName="NeedToWait")]
+        [ValidateRange(1,14)]
+        $DaysToWaitForResponseBeforeFollowUp,        
+        
+        [Parameter(ParameterSetName="DontNeedToWait")]
+        [Switch]$DontNeedToWaitForResponse,
+
+        [Parameter(ParameterSetName="DontNeedToWait")]
+        [Parameter(ParameterSetName="NeedToWait")]        
+        [Switch]$UseTemplate
+    )
+    $Card = Get-KanbanizeContextCard
+    $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
+
+    $HelpDeskSignature = "`r`n`r`nThanks,`r`n`r`nIT Help Desk"
+
+    $Body = if ($UseTemplate) {
+        $ProcessedMailMessage = Get-MailMessageTemplateFile | Invoke-ProcessTemplateFile
+        Read-MultiLineInputBoxDialog -WindowTitle "Mail Message" -Message "Enter the message that will be sent" -DefaultText $ProcessedMailMessage + $HelpDeskSignature
+    } else {
+        $DefaultMessage = "$($WorkOrder.RequestorFirstName),`r`n`r`n" + $HelpDeskSignature
+        Read-MultiLineInputBoxDialog -WindowTitle "Mail Message" -Message "Enter the message that will be sent" -DefaultText $DefaultMessage
+    }
+        
+    $Subject = "Re: $($Card.title) {$($Card.taskid)}"
+    $Cc = "tervis_notifications@kanbanize.com"
+
+    Send-TervisMailMessage -To $WorkOrder.RequestorEmailAddress -From HelpDeskTeam@tervis.com -Subject $Subject -Cc $Cc -Body $Body
+    Edit-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -CustomFields @{"Scheduled Date"=(Get-Date).AddDays($DaysToWaitForResponseBeforeFollowUp).ToString("yyyy-MM-dd")}
+    Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Waiting for scheduled date" | Out-Null
+}
+
+Function Get-MailMessageTemplatePath {
+    $DNSRoot = Get-ADDomain | select -ExpandProperty DNSRoot
+    "\\$DNSRoot\applications\PowerShell\Production\TervisHelpDeskWorkOrderApplication\MailMessageTemplate"
+}
+
+Function Get-MailMessageAvailableProperites {
+    $Card = Get-KanbanizeContextCard
+    $Card
+    $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
+    $WorkOrder
+}
+
+Function New-MailMessageTemplateFile {
+    param (
+        [Parameter(Mandatory)]$Name,
+        $Type = (get-TervisKanbanizeTypes | Out-GridView -PassThru)
+    )
+    $MailMessageTemplateContent = Read-MultiLineInputBoxDialog -WindowTitle "Template" -Message "Enter the template content"
+    if (-not $MailMessageTemplateContent) { break }
+
+    $MailMessageTemplateContent | Out-File -FilePath "$(Get-MailMessageTemplatePath)\$Name.PSTemplate"
+
+    $Type | New-MailMessageTemplateSymbolicLinks -MailMessageTemplateFile "$(Get-MailMessageTemplatePath)\$Name.PSTemplate"
+}
+
+Function Edit-MailMessageTemplateFile {
+    $TemplateFile = Get-MailMessageTemplateFile
+    $Content = Read-MultiLineInputBoxDialog -WindowTitle "Mail Message" -Message "Enter the message note that will be sent to the user" -DefaultText $($TemplateFile | Get-Content -Raw)
+    if (-not $Content) { break }
+    Set-MailMessageTemplateFile -File $TemplateFile -Content $Content
+}
+
+Function Get-MailMessageTemplateFile {
+    param (
+        $Type = $(
+            $ContextCardType = Get-KanbanizeContextCard | select -ExpandProperty Type
+            if ($ContextCardType) {
+                $ContextCardType
+            } else {
+                Get-ChildItem -Path  "$(Get-MailMessageTemplatePath)" -Directory | 
+                select -ExpandProperty name | 
+                Out-GridView -PassThru
+            }
+        )
+    )
+    Get-ChildItem -Path "$(Get-MailMessageTemplatePath)\$Type" | Out-GridView -PassThru
+}
+
+Function Set-MailMessageTemplateFile {
+    param (
+        $File,
+        $Content
+    )
+    $FinalFile = if ($File.LinkType -eq "SymbolicLink") {
+        $File.Target -creplace "UNC\\","\\" | Get-Item
+    } else {
+        $File
+    }
+
+    $Content | Out-File -FilePath $FinalFile
+}
+
+Function New-MailMessageTemplateSymbolicLinks {
+    param (
+        [Parameter(Mandatory)][System.IO.FileInfo]$MailMessageTemplateFile,
+        [Parameter(ValueFromPipeline)]$Type
+    )
+    process {
+        New-Item -Path "$(Get-MailMessageTemplatePath)\$Type\$($MailMessageTemplateFile.Name)" -ItemType SymbolicLink -Value $MailMessageTemplateFile -Force
+    }
+}
+
+Function New-MailMessageTemplateFileToTypeAssociation {
+    Get-MailMessageTemplateFile | Add-MailMessageTemplateFileToType
+}
+
+Function Add-MailMessageTemplateFileToType {
+    param (
+        [Parameter(Mandatory, ValueFromPipeline)][System.IO.FileInfo]$MailMessageTemplateFile,
+        $Type = (Get-KanbanizeContextCard | select -ExpandProperty Type)
+    )
+    process {
+        New-MailMessageTemplateSymbolicLinks -MailMessageTemplateFile $MailMessageTemplateFile -Type $Type
+    }
 }
 
 Function Send-MailMessageToRequestorViaOutlook {
+    param (
+        [ValidateRange(1,14)]$DaysToWaitForResponseBeforeFollowUp,
+        [Switch]$CanPerformNextActionsWithoutResponse
+    )
     $Card = Get-KanbanizeContextCard
     $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
-    $RequestorNameBecauseFilterDoesntWorkWithPropertyReference = $WorkOrder.RequestorName
-    $RequestorEmailAddress = Get-ADUser -Filter {Name -eq  $RequestorNameBecauseFilterDoesntWorkWithPropertyReference} -Properties EmailAddress |
-    Select -ExpandProperty EmailAddress
 
-    Start $(New-MailToURI -To $RequestorEmailAddress -Subject "Re: $($Card.title) {$($Card.taskid)}" -Cc tervis_notifications@kanbanize.com)
+    Start $(New-MailToURI -To $WorkOrder.RequestorEmailAddress -Subject "Re: $($Card.title) {$($Card.taskid)}" -Cc tervis_notifications@kanbanize.com)
 }
 
 Function Close-WorkOrder {
-    import-module TrackITWebAPIPowerShell -Force
-    Invoke-TrackITLogin -Username helpdeskbot -Pwd helpdeskbot
-
     $Card = Get-KanbanizeContextCard
     $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
 
-    $RequestorFirstName = $WorkOrder.RequestorName -split " " | select -First 1
-    $DefaultCloseMessage = "$($RequestorFirstName),`r`n`r`n`r`n`r`nIf you have any further issues please give us a call at 2248 or 941-441-3168`r`n`r`nThanks,`r`n`r`nIT Help Desk"
+    $DefaultCloseMessage = "$($WorkOrder.RequestorFirstName),`r`n`r`n`r`n`r`nIf you have any further issues please give us a call at 2248 or 941-441-3168`r`n`r`nThanks,`r`n`r`nIT Help Desk"
     $Resolution = Read-MultiLineInputBoxDialog -WindowTitle "Resolution" -Message "Enter the final resolution note that will be sent to the user" -DefaultText $DefaultCloseMessage
     if (-not $Resolution) { break }
 
     Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Done" | Out-Null
+
+    Import-Module TrackITWebAPIPowerShell -Force
+    Invoke-TrackITLogin -Username helpdeskbot -Pwd helpdeskbot
     Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
+    
     Remove-KanbanizeContextCard
 }
 
