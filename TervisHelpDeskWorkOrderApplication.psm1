@@ -375,12 +375,14 @@ Function Close-WorkOrder {
     $Resolution = Read-MultiLineInputBoxDialog -WindowTitle "Resolution" -Message "Enter the final resolution note that will be sent to the user" -DefaultText $DefaultCloseMessage
     if (-not $Resolution) { break }
 
-    Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Done" | Out-Null
-
     Import-Module TrackITWebAPIPowerShell -Force
     Invoke-TrackITLogin -Username helpdeskbot -Pwd helpdeskbot
-    Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
-    
+    $Response = Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
+    if (-not ($Response.success | ConvertTo-Boolean)) { 
+        Throw "Closing the track it work order failed. $($Response.data)" 
+    }
+
+    Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Done" | Out-Null
     Remove-KanbanizeContextCard
 }
 
