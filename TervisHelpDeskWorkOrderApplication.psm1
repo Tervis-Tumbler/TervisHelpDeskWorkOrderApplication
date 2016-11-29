@@ -89,34 +89,45 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
 
         Write-Verbose "Destination column: $DestinationBoardID"
 
-        $NeedToBeEscalated = get-MultipleChoiceQuestionAnswered -Question "Does this need to be escalated?" -Choices "Yes","No" | 
-        ConvertTo-Boolean
+        $FurtherTriageNeeded = get-MultipleChoiceQuestionAnswered -Question "Does this need to be triaged further?" -Choices "Yes","No" | 
+            ConvertTo-Boolean
         
-        if($NeedToBeEscalated) {
-            $DestinationLane = "Unplanned Work"
-            Move-KanbanizeTask -BoardID $DestinationBoardID -TaskID $Card.taskid -Lane $DestinationLane -Column "Requested.Ready to be worked on"
-        } else { 
-            $DestinationLane = "Planned Work"
-            Move-KanbanizeTask -BoardID $DestinationBoardID -TaskID $Card.taskid -Lane $DestinationLane -Column "Requested.Ready to be worked on"
+        if ($FurtherTriageNeeded) {
+                $SendEmailToRequestorForMoreInformation = get-MultipleChoiceQuestionAnswered -Question "Send email to requestor for more information?" -Choices "Yes","No" | ConvertTo-Boolean
+                if ($SendEmailToRequestorForMoreInformation) {
+                    Set-KanbanizeContextCard -Card $Card
+                    Send-MailMessageToRequestor -DaysToWaitForResponseBeforeFollowUp 3
+                }
+        } else {
+            $NeedToBeEscalated = get-MultipleChoiceQuestionAnswered -Question "Does this need to be escalated?" -Choices "Yes","No" | 
+            ConvertTo-Boolean
+        
+            if($NeedToBeEscalated) {
+                $DestinationLane = "Unplanned Work"
+                Move-KanbanizeTask -BoardID $DestinationBoardID -TaskID $Card.taskid -Lane $DestinationLane -Column "Requested.Ready to be worked on"
+            } else { 
+                $DestinationLane = "Planned Work"
+                Move-KanbanizeTask -BoardID $DestinationBoardID -TaskID $Card.taskid -Lane $DestinationLane -Column "Requested.Ready to be worked on"
 
-            <#
-            $CardsThatNeedToBeSorted = $Cards | 
-            where {$_.columnpath -eq $DestinationColumn -and $_.lanename -eq "Planned Work"} |
-            sort positionint
+                <#
+                $CardsThatNeedToBeSorted = $Cards | 
+                where {$_.columnpath -eq $DestinationColumn -and $_.lanename -eq "Planned Work"} |
+                sort positionint
 
-            $SortedCards = $CardsThatNeedToBeSorted |
-            sort priorityint, trackitid
-            $PositionOfTheLastCardInTheSamePriortiyLevel = $SortedCards |
-                where priorityint -EQ $(if($Card.PriorityInt){$Card.PriorityInt}else{$Priority}) |
-                select -Last 1 -ExpandProperty PositionInt
+                $SortedCards = $CardsThatNeedToBeSorted |
+                sort priorityint, trackitid
+                $PositionOfTheLastCardInTheSamePriortiyLevel = $SortedCards |
+                    where priorityint -EQ $(if($Card.PriorityInt){$Card.PriorityInt}else{$Priority}) |
+                    select -Last 1 -ExpandProperty PositionInt
             
-            $RightPosition = if($PositionOfTheLastCardInTheSamePriortiyLevel) {
-                $PositionOfTheLastCardInTheSamePriortiyLevel + 1
-            } else { 0 }
-            Write-Verbose "Rightposition in column: $RightPosition"
+                $RightPosition = if($PositionOfTheLastCardInTheSamePriortiyLevel) {
+                    $PositionOfTheLastCardInTheSamePriortiyLevel + 1
+                } else { 0 }
+                Write-Verbose "Rightposition in column: $RightPosition"
             
-            Move-KanbanizeTask -BoardID $DestinationBoardID -TaskID $Card.taskid -Lane $DestinationLane -Column $DestinationColumn -Position $RightPosition
-            #>
+                Move-KanbanizeTask -BoardID $DestinationBoardID -TaskID $Card.taskid -Lane $DestinationLane -Column $DestinationColumn -Position $RightPosition
+                #>
+            }
         }
 
         Write-Verbose "DestinationLane: $DestinationLane"
