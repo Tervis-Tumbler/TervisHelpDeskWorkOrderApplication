@@ -278,6 +278,7 @@ Function Send-MailMessageToRequestor {
 
     Send-TervisMailMessage -To $WorkOrder.RequestorEmailAddress -From HelpDeskTeam@tervis.com -Subject $Subject -Cc $Cc -Body $Body
     Edit-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -CustomFields @{"Scheduled Date"=(Get-Date).AddDays($DaysToWaitForResponseBeforeFollowUp).ToString("yyyy-MM-dd")}
+    sleep 5
     Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Waiting for scheduled date" | Out-Null
 }
 
