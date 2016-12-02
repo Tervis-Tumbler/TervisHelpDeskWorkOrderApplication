@@ -276,10 +276,10 @@ Function Send-MailMessageToRequestor {
     $Subject = "Re: $($Card.title) {$($Card.taskid)}"
     $Cc = "tervis_notifications@kanbanize.com"
 
-    Start-Job -Name "Mail $($Card.taskid)" -ArgumentList $WorkOrder,$Card,$Subject,$Cc,$Body,$DaysToWaitForResponseBeforeFollowUp -ScriptBlock {
-        param ($WorkOrder,$Card,$Subject,$Cc,$Body,$DaysToWaitForResponseBeforeFollowUp)
-        Send-TervisMailMessage -To $WorkOrder.RequestorEmailAddress -From HelpDeskTeam@tervis.com -Subject $Subject -Cc $Cc -Body $Body
-        sleep 120
+    Send-TervisMailMessage -To $WorkOrder.RequestorEmailAddress -From HelpDeskTeam@tervis.com -Subject $Subject -Cc $Cc -Body $Body
+    Start-Job -Name "Mail $($Card.taskid)" -ArgumentList $WorkOrder,$Card,$DaysToWaitForResponseBeforeFollowUp -ScriptBlock {
+        param ($WorkOrder,$Card,$DaysToWaitForResponseBeforeFollowUp)
+        sleep 60
         Edit-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -CustomFields @{"Scheduled Date"=(Get-Date).AddDays($DaysToWaitForResponseBeforeFollowUp).ToString("yyyy-MM-dd")}
         Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Waiting for scheduled date" | Out-Null
     }
