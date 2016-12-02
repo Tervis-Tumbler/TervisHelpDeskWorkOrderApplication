@@ -265,13 +265,15 @@ Function Send-MailMessageToRequestor {
 
     $HelpDeskSignature = "`r`n`r`nThanks,`r`n`r`nIT Help Desk"
 
-    $Body = if ($UseTemplate) {
+    $DefaultMessageText = if ($UseTemplate) {
         $ProcessedMailMessage = Get-MailMessageTemplateFile | Invoke-ProcessTemplateFile
-        Read-MultiLineInputBoxDialog -WindowTitle "Mail Message" -Message "Enter the message that will be sent" -DefaultText $ProcessedMailMessage + $HelpDeskSignature
+        $ProcessedMailMessage + $HelpDeskSignature
     } else {
-        $DefaultMessage = "$($WorkOrder.RequestorFirstName),`r`n`r`n" + $HelpDeskSignature
-        Read-MultiLineInputBoxDialog -WindowTitle "Mail Message" -Message "Enter the message that will be sent" -DefaultText $DefaultMessage
+        "$($WorkOrder.RequestorFirstName),`r`n`r`n" + $HelpDeskSignature
     }
+
+    $Body = Read-MultiLineInputBoxDialog -WindowTitle "Mail Message" -Message "Enter the message that will be sent" -DefaultText $DefaultMessageText
+    if (-not $Body) { break }
         
     $Subject = "Re: $($Card.title) {$($Card.taskid)}"
     $Cc = "tervis_notifications@kanbanize.com"
