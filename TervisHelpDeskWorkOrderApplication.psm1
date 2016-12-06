@@ -10,23 +10,10 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
     [CmdletBinding()]
     param()
 
-    #$VerbosePreference = "continue"
-
-    Import-Module KanbanizePowerShell -Force
-    Import-module TrackItWebAPIPowerShell -Force
-
-    Invoke-TrackITLogin -Username helpdeskbot -Pwd helpdeskbot
-
-    $KanbanizeBoards = Get-KanbanizeProjectsAndBoards
-
-    $HelpDeskProcessBoardID = $KanbanizeBoards.projects.boards | where name -EQ "Help Desk Process" | select -ExpandProperty ID
-    $HelpDeskTechnicianProcessBoardID = $KanbanizeBoards.projects.boards | where name -EQ "Help Desk Technician Process" | select -ExpandProperty ID
+    $HelpDeskProcessBoardID = Get-TervisKanbanizeHelpDeskBoardIDs -HelpDeskProcess
+    $HelpDeskTechnicianProcessBoardID = Get-TervisKanbanizeHelpDeskBoardIDs -HelpDeskTechnicianProcess
 
     $Types = get-TervisKanbanizeTypes
-
-    #$WaitingToBePrioritized = Get-KanbanizeTervisHelpDeskCards -HelpDeskProcess |
-    #where columnpath -Match "Waiting to be prioritized" |
-    #sort positionint
 
     $WaitingToBePrioritized = Get-KanbanizeTervisHelpDeskCards -HelpDeskTriageProcess |
     where columnpath -NotMatch "Waiting for scheduled date" |
@@ -84,7 +71,7 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
         #    $DestinationBoardID = $HelpDeskTechnicianProcessBoardID
         #}
 
-        #For now send everything tot he Help Desk Process board
+        #For now send everything to the Help Desk Process board
         $DestinationBoardID = $HelpDeskProcessBoardID
 
         Write-Verbose "Destination column: $DestinationBoardID"
@@ -386,7 +373,6 @@ Function Send-MailMessageToRequestorViaOutlook {
 
 Function Close-WorkOrder {
     $Card = Get-KanbanizeContextCard
-    $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
 
     $DefaultCloseMessage = "$($WorkOrder.RequestorFirstName),`r`n`r`n`r`n`r`nIf you have any further issues please give us a call at 2248 or 941-441-3168`r`n`r`nThanks,`r`n`r`nIT Help Desk"
     $Resolution = Read-MultiLineInputBoxDialog -WindowTitle "Resolution" -Message "Enter the final resolution note that will be sent to the user" -DefaultText $DefaultCloseMessage
