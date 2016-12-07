@@ -375,14 +375,12 @@ Function Close-WorkOrder {
     $Card = Get-KanbanizeContextCard
 
     if ($Card.TrackITID) {
+        $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
+
         $DefaultCloseMessage = "$($WorkOrder.RequestorFirstName),`r`n`r`n`r`n`r`nIf you have any further issues please give us a call at 2248 or 941-441-3168`r`n`r`nThanks,`r`n`r`nIT Help Desk"
         $Resolution = Read-MultiLineInputBoxDialog -WindowTitle "Resolution" -Message "Enter the final resolution note that will be sent to the user" -DefaultText $DefaultCloseMessage
         if (-not $Resolution) { break }
-
-        $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
-
-        Import-Module TrackITWebAPIPowerShell -Force
-        Invoke-TrackITLogin -Username helpdeskbot -Pwd helpdeskbot
+        
         $Response = Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
         if (-not ($Response.success | ConvertTo-Boolean)) { 
             Throw "Closing the track it work order failed. $($Response.data)" 
