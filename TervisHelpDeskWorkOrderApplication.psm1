@@ -369,6 +369,16 @@ Function Send-MailMessageToRequestorViaOutlook {
     $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
 
     Start $(New-MailToURI -To $WorkOrder.RequestorEmailAddress -Subject "Re: $($Card.title) {$($Card.taskid)}" -Cc tervis_notifications@kanbanize.com)
+    
+    if ($DaysToWaitForResponseBeforeFollowUp) {
+        Read-Host "Press enter when message has been sent"
+        Start-Job -Name "Mail $($Card.taskid)" -ArgumentList $WorkOrder,$Card,$DaysToWaitForResponseBeforeFollowUp -ScriptBlock {
+            param ($WorkOrder,$Card,$DaysToWaitForResponseBeforeFollowUp)
+            sleep 60
+            Edit-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -CustomFields @{"Scheduled Date"=(Get-Date).AddDays($DaysToWaitForResponseBeforeFollowUp).ToString("yyyy-MM-dd")}
+            Move-KanbanizeTask -BoardID $Card.BoardID -TaskID $Card.taskid -Column "Waiting for scheduled date" | Out-Null
+        }
+    }
 }
 
 Function Close-WorkOrder {
