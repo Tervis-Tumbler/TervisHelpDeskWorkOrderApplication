@@ -381,6 +381,8 @@ Function Close-WorkOrder {
         $Resolution = Read-MultiLineInputBoxDialog -WindowTitle "Resolution" -Message "Enter the final resolution note that will be sent to the user" -DefaultText $DefaultCloseMessage
         if (-not $Resolution) { break }
         
+        Import-module TrackItWebAPIPowerShell -Force #Something is broken as this line shouldn't be required but it is
+        Invoke-TrackITLogin -Username helpdeskbot -Pwd helpdeskbot
         $Response = Close-TrackITWorkOrder -WorkOrderNumber $Card.TrackITID -Resolution $Resolution
         if (-not ($Response.success | ConvertTo-Boolean)) { 
             Throw "Closing the track it work order failed. $($Response.data)" 
