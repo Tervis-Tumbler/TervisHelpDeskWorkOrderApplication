@@ -39,7 +39,12 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
             $SelectedType = $Types | Out-GridView -PassThru
     
             if ($SelectedType -ne $null) {
-                Edit-KanbanizeTask -TaskID $Card.taskid -BoardID $Card.BoardID -Type $SelectedType        
+                $WorkInstructionURI = Get-WorkInstructionURI -Type $SelectedType
+                if ($WorkInstructionURI) {
+                    Edit-KanbanizeTask -TaskID $Card.taskid -BoardID $Card.BoardID -Type $SelectedType -CustomFields @{"Work Instruction"="$WorkInstructionURI"}
+                } else {
+                    Edit-KanbanizeTask -TaskID $Card.taskid -BoardID $Card.BoardID -Type $SelectedType
+                }
             } else {
                 $ToBeCreatedSelectedType = $global:ToBeCreatedTypes | Out-GridView -PassThru
                 if ($ToBeCreatedSelectedType -ne $null) {
@@ -128,6 +133,20 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
     $global:CardsThatNeedToBeCreatedTypes | % {
         Edit-KanbanizeTask -TaskID $_.taskid -BoardID $_.BoardID -Type $_.type
     }
+}
+
+Function Get-WorkInstructionURI {
+    param (
+        $Type
+    )
+    $TypeToWorkInstructionURIMappingPath = "\\$(Get-ADDomain | select -ExpandProperty dnsroot)\applications\PowerShell\Production\TervisHelpDeskWorkOrderApplication\TypeToWorkInstructionURIMapping.json"
+
+    if (-not $Script:TypeToWorkInstructionURIMapping) {
+        $Script:TypeToWorkInstructionURIMapping = Get-Content -Path $TypeToWorkInstructionURIMappingPath |
+        ConvertFrom-Json
+    }
+
+    $Script:TypeToWorkInstructionURIMapping.$Type
 }
 
 Function Get-NextCardToWorkOn {
