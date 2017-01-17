@@ -135,20 +135,6 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
     }
 }
 
-Function Get-WorkInstructionURI {
-    param (
-        $Type
-    )
-    $TypeToWorkInstructionURIMappingPath = "\\$(Get-ADDomain | select -ExpandProperty dnsroot)\applications\PowerShell\Production\TervisHelpDeskWorkOrderApplication\TypeToWorkInstructionURIMapping.json"
-
-    if (-not $Script:TypeToWorkInstructionURIMapping) {
-        $Script:TypeToWorkInstructionURIMapping = Get-Content -Path $TypeToWorkInstructionURIMappingPath |
-        ConvertFrom-Json
-    }
-
-    $Script:TypeToWorkInstructionURIMapping.$Type
-}
-
 Function Get-NextCardToWorkOn {
     param (
         [Parameter(ParameterSetName="AssignedToMe")][Switch]$AssignedToMe
