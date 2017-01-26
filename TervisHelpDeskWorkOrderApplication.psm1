@@ -403,6 +403,10 @@ Function Close-WorkOrder {
         if (-not ($Response.success | ConvertTo-Boolean)) { 
             Throw "Closing the track it work order failed. $($Response.data)" 
         }
+        
+        $Subject = "Re: $($Card.title) {$($Card.taskid)}"
+        $Cc = "tervis_notifications@kanbanize.com"
+        Send-TervisMailMessage -To $WorkOrder.RequestorEmailAddress -From HelpDeskTeam@tervis.com -Subject $Subject -Cc $Cc -Body $Resolution
     } else {
         $Requestor = if ($Card.Requestor) {$Card.Requestor} else {$Card.Reporter}
         $DefaultCloseMessage = "@$($Requestor),`r`n`r`n`r`n`r`nIf you have any further issues please give us a call at 2248 or 941-441-3168`r`n`r`nThanks,`r`n`r`nIT Help Desk"
