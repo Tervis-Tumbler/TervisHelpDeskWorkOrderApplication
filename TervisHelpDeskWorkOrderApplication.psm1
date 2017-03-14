@@ -32,7 +32,7 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
         if ($SkipCard) { continue }
 
         if ($Card.Type -ne "None") {
-            $TypeCorrect = get-MultipleChoiceQuestionAnswered -Question "Type correct?" -Choices "Yes","No" | ConvertTo-Boolean               
+            $TypeCorrect = get-MultipleChoiceQuestionAnswered -Question "Type ($($Card.Type)) correct?" -Choices "Yes","No" | ConvertTo-Boolean               
         }
         
         if (-not $TypeCorrect -or ($Card.Type -eq "None")) {        
@@ -41,9 +41,9 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
             if ($SelectedType -ne $null) {
                 $WorkInstructionURI = Get-WorkInstructionURI -Type $SelectedType
                 if ($WorkInstructionURI) {
-                    Edit-KanbanizeTask -TaskID $Card.taskid -BoardID $Card.BoardID -Type $SelectedType -CustomFields @{"Work Instruction"="$WorkInstructionURI"}
+                    Edit-KanbanizeTask -TaskID $Card.taskid -BoardID $Card.BoardID -Type $SelectedType -CustomFields @{"Work Instruction"="$WorkInstructionURI"} | Out-Null
                 } else {
-                    Edit-KanbanizeTask -TaskID $Card.taskid -BoardID $Card.BoardID -Type $SelectedType
+                    Edit-KanbanizeTask -TaskID $Card.taskid -BoardID $Card.BoardID -Type $SelectedType | Out-Null
                 }
             } else {
                 $ToBeCreatedSelectedType = $global:ToBeCreatedTypes | Out-GridView -PassThru
@@ -389,6 +389,20 @@ Function Send-MailMessageToRequestorViaOutlook {
 
 Function Close-WorkOrder {
     $Card = Get-KanbanizeContextCard
+
+    if ($Card.Type -ne "None") {
+        $TypeCorrect = get-MultipleChoiceQuestionAnswered -Question "Type ($($Card.Type)) correct?" -Choices "Yes","No" | ConvertTo-Boolean               
+    }
+        
+    if (-not $TypeCorrect -or ($Card.Type -eq "None")) {        
+        $SelectedType = get-TervisKanbanizeTypes | Out-GridView -PassThru
+    
+        if ($SelectedType -ne $null) {
+            Edit-KanbanizeTask -TaskID $Card.taskid -BoardID $Card.BoardID -Type $SelectedType | Out-Null
+        } else {
+            Throw "Please create the missing type that should be assigned to this work order and then close the work order again"
+        }
+    }
 
     if ($Card.TrackITID) {
         $WorkOrder = Get-TervisTrackITWorkOrder -WorkOrderNumber $Card.TrackITID
