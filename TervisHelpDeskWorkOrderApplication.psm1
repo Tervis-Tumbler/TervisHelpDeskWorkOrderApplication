@@ -18,6 +18,8 @@ function Invoke-PrioritizeConfirmTypeAndMoveCard {
 
     $WaitingToBePrioritized = Get-KanbanizeTervisHelpDeskCards -HelpDeskTriageProcess |
     where columnpath -NotMatch "Waiting for scheduled date" |
+    where columnpath -NotMatch "Being worked on" |
+    where columnpath -NotMatch "Waiting to be worked on" |
     sort positionint
 
     $global:CardsThatNeedToBeCreatedTypes = @()
