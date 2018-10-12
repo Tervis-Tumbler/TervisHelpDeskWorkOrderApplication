@@ -185,7 +185,9 @@ Function Get-CardBeingWorkedOn {
 }
 
 Function Get-CardDetails {
-    $Card = (Get-KanbanizeContextCard)
+    param(
+        $Card = (Get-KanbanizeContextCard)
+    )
     if (-Not $Card) {
         $Card = (Get-CardBeingWorkedOn | Out-GridView -PassThru)
     }
@@ -239,6 +241,34 @@ Function Get-KanbanizeContextCard {
 
 Function Remove-KanbanizeContextCard {
     Remove-item Variable:Global:KanbanizeContextCard
+}
+
+Function Find-WorkOrder {
+    param (
+        [Parameter(Mandatory,ParameterSetName="KanbanizeID")]$KanbanizeID,
+        [Parameter(Mandatory,ParameterSetName="TrackItID")]$TrackItID,
+        [Parameter(Mandatory,ParameterSetName="Title")]$Title
+    )
+
+    $Cards = Get-KanbanizeTervisHelpDeskCards -HelpDeskProcess -HelpDeskTechnicianProcess -HelpDeskTriageProcess
+    if ($KanbanizeID) {
+        $Card = $Cards | Where-Object taskid -EQ $KanbanizeID
+    } elseif ($TrackItID) {
+        $Card = $Cards | Where-Object TrackITIDFromTitle -Match $TrackItID
+    } elseif ($Title) {
+        $SearchResult = $Cards | Where-Object title -Match $Title
+        if ($SearchResult.count -gt 1) {
+            $Card = $SearchResult | Out-GridView -PassThru
+        } else {
+            $Card = $SearchResult
+        }
+    }
+
+    if ($Card) {
+        Get-CardDetails -Card $Card
+    } else {
+        Write-Warning "No work order found."
+    }
 }
 
 Function Send-MailMessageToRequestor {
